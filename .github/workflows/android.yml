@@ -1,0 +1,103 @@
+name: Build WILFOOT Android APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Compile WILFOOT APK
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Download repository
+        uses: actions/checkout@v4
+
+      - name: Prepare project
+        run: |
+          set -e
+
+          mkdir -p build_source
+
+          unzip -q WILFOOT_3_0_ANDROID_SEM_PC.zip -d build_source
+
+          PROJECT_FILE=$(find build_source -name project.godot -type f | head -n 1)
+
+          if [ -z "$PROJECT_FILE" ]; then
+            echo "ERRO: project.godot não encontrado."
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$PROJECT_FILE")
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+          echo "Projeto encontrado em:"
+          echo "$PROJECT_DIR"
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
+
+      - name: Download Godot
+        run: |
+          wget -q \
+            https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip \
+            -O godot.zip
+
+          unzip -q godot.zip -d godot
+
+          GODOT_BIN=$(find godot -type f -name 'Godot_v4.7.2-stable_linux.x86_64' | head -n 1)
+
+          chmod +x "$GODOT_BIN"
+
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Download Godot export templates
+        run: |
+          wget -q \
+            https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz \
+            -O templates.tpz
+
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.7.2.stable"
+
+          unzip -q templates.tpz -d templates
+
+          find templates -type f \
+            -exec cp {} "$HOME/.local/share/godot/export_templates/4.7.2.stable/" \; \
+            || true
+
+      - name: Check Godot project
+        run: |
+          "$GODOT_BIN" \
+            --headless \
+            --path "$PROJECT_DIR" \
+            --editor \
+            --quit
+
+      - name: Export Android APK
+        run: |
+          mkdir -p "$PROJECT_DIR/build"
+
+          "$GODOT_BIN" \
+            --headless \
+            --path "$PROJECT_DIR" \
+            --export-release "Android" \
+            "$PROJECT_DIR/build/WILFOOT_3_0.apk"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: WILFOOT-3.0-APK
+          path: "**/build/*.apk"
+          if-no-files-found: error
