@@ -18,7 +18,7 @@ jobs:
 
           mkdir -p build_source
 
-          unzip -q WILFOOT_3_0_ANDROID_SEM_PC.zip -d build_source
+          unzip -q WILFOOT_3_0_ANDROID_ETC2_ASTC_FIX.zip -d build_source
 
           PROJECT_FILE=$(find build_source -name project.godot -type f | head -n 1)
 
