@@ -87,17 +87,18 @@ jobs:
 
       - name: Export Android APK
         run: |
-          mkdir -p "$PROJECT_DIR/build"
-
+          set -e
+          APK_DIR="$GITHUB_WORKSPACE/apk"
+          mkdir -p "$APK_DIR"
           "$GODOT_BIN" \
             --headless \
             --path "$PROJECT_DIR" \
             --export-release "Android" \
-            "$PROJECT_DIR/build/WILFOOT_3_0.apk"
+            "$APK_DIR/WILFOOT_3_0.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: WILFOOT-3.0-APK
-          path: "**/build/*.apk"
+          path: "apk/*.apk"
           if-no-files-found: error
