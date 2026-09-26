@@ -15,24 +15,19 @@ jobs:
       - name: Prepare project
         run: |
           set -e
-
+          rm -rf build_source
           mkdir -p build_source
-
           unzip -q WILFOOT_3_0_ANDROID_ETC2_ASTC_FIX.zip -d build_source
-
           PROJECT_FILE=$(find build_source -name project.godot -type f | head -n 1)
-
           if [ -z "$PROJECT_FILE" ]; then
             echo "ERRO: project.godot não encontrado."
+            find build_source -type f | head -n 50
             exit 1
           fi
-
           PROJECT_DIR=$(dirname "$PROJECT_FILE")
-
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-
-          echo "Projeto encontrado em:"
-          echo "$PROJECT_DIR"
+          echo "Projeto em: $PROJECT_DIR"
+          ls -la "$PROJECT_DIR" | head -n 50
 
       - name: Install Java
         uses: actions/setup-java@v4
@@ -45,60 +40,46 @@ jobs:
 
       - name: Install Android SDK packages
         run: |
-          sdkmanager "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
+          yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Download Godot
         run: |
-          wget -q \
-            https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip \
-            -O godot.zip
-
+          wget -q https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -O godot.zip
           unzip -q godot.zip -d godot
-
           GODOT_BIN=$(find godot -type f -name 'Godot_v4.7.2-stable_linux.x86_64' | head -n 1)
-
           chmod +x "$GODOT_BIN"
-
           echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          "$GODOT_BIN" --version
 
       - name: Download Godot export templates
         run: |
-          wget -q \
-            https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz \
-            -O templates.tpz
-
+          wget -q https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz -O templates.tpz
           mkdir -p "$HOME/.local/share/godot/export_templates/4.7.2.stable"
+          rm -rf /tmp/godot_templates
+          mkdir -p /tmp/godot_templates
+          unzip -q templates.tpz -d /tmp/godot_templates
+          cp -r /tmp/godot_templates/templates/* "$HOME/.local/share/godot/export_templates/4.7.2.stable/" || cp -r /tmp/godot_templates/* "$HOME/.local/share/godot/export_templates/4.7.2.stable/" || true
+          ls "$HOME/.local/share/godot/export_templates/4.7.2.stable/" | head -n 20
 
-          unzip -q templates.tpz -d templates
-
-          find templates -type f \
-            -exec cp {} "$HOME/.local/share/godot/export_templates/4.7.2.stable/" \; \
-            || true
-
-      - name: Check Godot project
+      - name: Check presets
         run: |
-          "$GODOT_BIN" \
-            --headless \
-            --path "$PROJECT_DIR" \
-            --editor \
-            --quit
+          cat "$PROJECT_DIR/export_presets.cfg" | head -n 100
+          echo "---"
+          grep -n "name=" "$PROJECT_DIR/export_presets.cfg" || true
 
-      - name: Export Android APK
+      - name: Export Android APK (DEBUG - sem keystore)
         run: |
           set -e
           APK_DIR="$GITHUB_WORKSPACE/apk"
           mkdir -p "$APK_DIR"
-          "$GODOT_BIN" \
-            --headless \
-            --path "$PROJECT_DIR" \
-            --export-release "Android" \
-            "$APK_DIR/WILFOOT_3_0.apk"
+          # Usa DEBUG pra não precisar de keystore assinado. Depois que funcionar, a gente muda pra RELEASE
+          "$GODOT_BIN" --headless --path "$PROJECT_DIR" --export-debug "Android" "$APK_DIR/WILFOOT_3_0.apk"
+          ls -lh "$APK_DIR/"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: WILFOOT-3.0-APK
-          path: "apk/*.apk"
+          path: apk/*.apk
           if-no-files-found: error
